@@ -4,7 +4,7 @@
  * Plugin URI: https://wordpress-plugins.luongovincenzo.it/#wp-adsterra-dashboard
  * Description: WP AdsTerra Dashboard for view statistics via API
  * Donate URI: https://donate.luongovincenzo.it/
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Vincenzo Luongo
  * Author URI: https://wordpress-plugins.luongovincenzo.it/
  * License: GPLv2 or later
@@ -378,12 +378,12 @@ class WPAdsterraDashboard {
                 return 'rgba(' + o(r() * s) + ',' + o(r() * s) + ',' + o(r() * s) + ', 1)';
             }
 
-            var LABELS_X = [<?php print implode(",", $labels_X); ?>];
+            var ADSTERRA_LABELS_X = [<?php print implode(",", $labels_X); ?>];
 
-            var config = {
+            var adsterraChartConfig = {
                 type: 'line',
                 data: {
-                    labels: LABELS_X,
+                    labels: ADSTERRA_LABELS_X,
                     datasets: [
                         <?php foreach ($values_Y as $key => $value) { ?>
                             {
@@ -446,10 +446,11 @@ class WPAdsterraDashboard {
                 }
             };
 
-            window.onload = function () {
-                var ctx = document.getElementById('adsterraStatsCanvas').getContext('2d');
-                var adsterraStatsCanvas = new Chart(ctx, config);
-            };
+            document.addEventListener("DOMContentLoaded", function () {
+    
+                var adsterraCtx = document.getElementById('adsterraStatsCanvas').getContext('2d');
+                var adsterraStatsCanvas = new Chart(adsterraCtx, adsterraChartConfig);
+            });
 
         </script>
         <?php
