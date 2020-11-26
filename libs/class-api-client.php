@@ -20,18 +20,15 @@ class WPAdsterraDashboardAPIClient {
 
         $args = array(
             'body' => $payload,
-            'timeout' => '5',
-            'redirection' => '5',
-            'httpversion' => '1.0',
-            'blocking' => true,
-            'headers' => array(),
-            'cookies' => array()
+            'timeout' => 10,
+            'redirection' => 3,
         );
 
         $ret = wp_remote_get(self::BASE_HOST . '/' . $this->token . $endpoint, $args);
 
         if (is_wp_error($ret)) {
-            $ret = $ret['body'];
+            return false; 
+            //$ret = $ret['body'];
         }
 
         return json_decode(wp_remote_retrieve_body($ret), true);
