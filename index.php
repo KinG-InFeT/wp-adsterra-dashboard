@@ -3,13 +3,13 @@
  * Plugin Name: WP Adsterra Dashboard
  * Plugin URI: https://wordpress-plugins.luongovincenzo.it/#wp-adsterra-dashboard
  * Description: WP AdsTerra Dashboard for view statistics via API
- * Donate URI: https://donate.luongovincenzo.it/
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: Vincenzo Luongo
- * Author URI: https://wordpress-plugins.luongovincenzo.it/
+ * Author URI: https://www.luongovincenzo.it/
  * License: GPLv2 or later
  * Text Domain: wp-adsterra-dashboard
  */
+
 if (!defined('ABSPATH')) {
     exit;
 }
@@ -85,7 +85,6 @@ class WPAdsterraDashboard {
 
     public function add_plugin_actions($links) {
         $links[] = '<a href="' . esc_url(get_admin_url(null, 'options-general.php?page=wp-adsterra-dashboard%2Findex.php')) . '">Settings</a>';
-        $links[] = '<a href="https://donate.luongovincenzo.it/" target="_blank">Donate</a>';
         return $links;
     }
 
