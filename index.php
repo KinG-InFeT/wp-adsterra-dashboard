@@ -3,13 +3,12 @@
  * Plugin Name: WP Adsterra Dashboard
  * Plugin URI: https://wordpress-plugins.luongovincenzo.it/#wp-adsterra-dashboard
  * Description: WP AdsTerra Dashboard for view statistics via API
- * Version: 1.2.2
+ * Version: 1.2.3
  * Author: Vincenzo Luongo
  * Author URI: https://www.luongovincenzo.it/
  * License: GPLv2 or later
  * Text Domain: wp-adsterra-dashboard
  */
-
 if (!defined('ABSPATH')) {
     exit;
 }
@@ -129,7 +128,6 @@ class WPAdsterraDashboard {
             require_once ADSTERRA_DASHBOARD_PLUGIN_DIR . 'libs/class-api-client.php';
             $adsterraAPIClient = new WPAdsterraDashboardAPIClient($pluginSettings['token'], $pluginSettings['domain_id']);
 
-
             $domains = $adsterraAPIClient->getDomains();
 
             if (!empty($domains['code']) && in_array($domains['code'], [401, 403])) {
@@ -148,14 +146,14 @@ class WPAdsterraDashboard {
         <div class="wrap">
             <h2>WP Adsterra Settings</h2>
 
-            <?php if ($errorMessage) { ?>
+        <?php if ($errorMessage) { ?>
                 <div class="error notice">
                     <p><?php _e($errorMessage); ?></p>
                 </div>
-            <?php } ?>
+        <?php } ?>
 
             <form method="post" action="options.php">
-                <?php settings_fields(ADSTERRA_DASHBOARD_PLUGIN_SETTINGS_GROUP); ?>
+        <?php settings_fields(ADSTERRA_DASHBOARD_PLUGIN_SETTINGS_GROUP); ?>
                 <?php do_settings_sections(ADSTERRA_DASHBOARD_PLUGIN_SETTINGS_GROUP); ?>
                 <table class="form-table">
                     <tbody>
@@ -177,25 +175,25 @@ class WPAdsterraDashboard {
                         <tr valign="top">
                             <td scope="row" class="left_adsterra_bar">Domain</td>
                             <td>
-                                <?php if (!empty($domains)) { ?>
+        <?php if (!empty($domains)) { ?>
                                     <select name="<?php print ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX; ?>_domain_id">
-                                        <?php
-                                        foreach ($domains as $domain) {
+                                    <?php
+                                    foreach ($domains as $domain) {
 
-                                            $selectedDom = '';
-                                            if (get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_domain_id') == $pluginSettings['domain_id']) {
-                                                $selectedDom = ' selected ';
-                                            }
-
-                                            print '<option value="' . $domain['id'] . '" ' . $selectedDom . ' >' . $domain['title'] . '</option>' . PHP_EOL;
+                                        $selectedDom = '';
+                                        if (get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_domain_id') == $pluginSettings['domain_id']) {
+                                            $selectedDom = ' selected ';
                                         }
-                                        ?>
+
+                                        print '<option value="' . $domain['id'] . '" ' . $selectedDom . ' >' . $domain['title'] . '</option>' . PHP_EOL;
+                                    }
+                                    ?>
                                     </select>
-                                <?php } else { ?>
+                                    <?php } else { ?>
                                     <p class="description">
                                         To view the list of domains, enter the correct Token API and save. 
                                     </p>
-                                <?php } ?>
+        <?php } ?>
                             </td>
                         </tr>
 
@@ -312,17 +310,16 @@ class WPAdsterraDashboard {
                 }
             }
         }
-
         ?>
 
         <div id="container-box">
 
-            <?php if ($errorMessage) { ?>
+        <?php if ($errorMessage) { ?>
                 <div class="error notice">
                     <p><?php _e($errorMessage); ?></p>
                 </div>
                 <p>Please enter into <a href="<?php print esc_url(get_admin_url(null, 'options-general.php?page=wp-adsterra-dashboard%2Findex.php')); ?>">Setting page</a> for resolve problem.</p>
-            <?php } else { ?>
+        <?php } else { ?>
 
                 <div style="height: 300px;" id="containerChartjs">
                     <canvas id="adsterraStatsCanvas"></canvas>
@@ -330,25 +327,25 @@ class WPAdsterraDashboard {
 
                 <table style="width:100%;">
                     <tr>
-                       <td style="width:30%;">Filter Month:</td>
-                       <td style="width:70%; font-weight: bold;">
+                                       <td style="width:30%;">Filter Month:</td>
+                                       <td style="width:70%; font-weight: bold;">
                             <select id="adsterra_dashboard_widget_filter_month" >
-                                <?php
-                                for ($i = 0; $i <= 12; $i++) {
+            <?php
+            for ($i = 0; $i <= 12; $i++) {
 
-                                    $selectValue = date('F Y', strtotime("-$i month"));
+                $selectValue = date('F Y', strtotime("-$i month"));
 
-                                    $selectedDom = '';
-                                    if (
-                                            (!$dateFilter && date('Y-m', strtotime($selectValue)) == date('Y-m')) ||
-                                            ($dateFilter && date('Y-m', strtotime($dateFilter)) == date('Y-m', strtotime($selectValue)) )
-                                    ) {
-                                        $selectedDom = ' selected ';
-                                    }
+                $selectedDom = '';
+                if (
+                        (!$dateFilter && date('Y-m', strtotime($selectValue)) == date('Y-m')) ||
+                        ($dateFilter && date('Y-m', strtotime($dateFilter)) == date('Y-m', strtotime($selectValue)) )
+                ) {
+                    $selectedDom = ' selected ';
+                }
 
-                                    print '<option value="' . strtotime($selectValue) . '" ' . $selectedDom . ' >' . $selectValue . '</option>' . PHP_EOL;
-                                }
-                                ?>
+                print '<option value="' . strtotime($selectValue) . '" ' . $selectedDom . ' >' . $selectValue . '</option>' . PHP_EOL;
+            }
+            ?>
                             </select>
                         </td>
                     </tr>
@@ -384,7 +381,7 @@ class WPAdsterraDashboard {
                 data: {
                     labels: ADSTERRA_LABELS_X,
                     datasets: [
-                        <?php foreach ($values_Y as $key => $value) { ?>
+        <?php foreach ($values_Y as $key => $value) { ?>
                             {
                                 label: '<?php print strtoupper($key); ?>',
                                 backgroundColor: adsterraRandomRGBAColor(),
@@ -392,7 +389,7 @@ class WPAdsterraDashboard {
                                 data: [<?php print implode(",", $values_Y[$key]); ?>],
                                 fill: false,
                             },
-                        <?php } ?>
+        <?php } ?>
                     ]
                 },
                 options: {
@@ -446,7 +443,7 @@ class WPAdsterraDashboard {
             };
 
             document.addEventListener("DOMContentLoaded", function () {
-    
+
                 var adsterraCtx = document.getElementById('adsterraStatsCanvas').getContext('2d');
                 var adsterraStatsCanvas = new Chart(adsterraCtx, adsterraChartConfig);
             });
