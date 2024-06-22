@@ -1,9 +1,10 @@
 <?php
+
 /**
  * Plugin Name: WP Adsterra Dashboard
  * Plugin URI: https://wordpress-plugins.luongovincenzo.it/#wp-adsterra-dashboard
  * Description: WP AdsTerra Dashboard for view statistics via API
- * Version: 1.2.4
+ * Version: 1.3.0
  * Author: Vincenzo Luongo
  * Author URI: https://www.luongovincenzo.it/
  * License: GPLv2 or later
@@ -25,7 +26,7 @@ class WPAdsterraDashboard {
     function __construct() {
 
         if (!function_exists('get_plugin_data')) {
-            require_once( ABSPATH . 'wp-admin/includes/plugin.php' );
+            require_once(ABSPATH . 'wp-admin/includes/plugin.php');
         }
 
         $this->pluginDetails = get_plugin_data(__FILE__);
@@ -136,7 +137,7 @@ class WPAdsterraDashboard {
                 $domains = [];
             }
         }
-        ?>
+?>
 
         <style>
             .left_adsterra_bar {
@@ -146,14 +147,14 @@ class WPAdsterraDashboard {
         <div class="wrap">
             <h2>WP Adsterra Settings</h2>
 
-        <?php if ($errorMessage) { ?>
+            <?php if ($errorMessage) { ?>
                 <div class="error notice">
                     <p><?php _e($errorMessage); ?></p>
                 </div>
-        <?php } ?>
+            <?php } ?>
 
             <form method="post" action="options.php">
-        <?php settings_fields(ADSTERRA_DASHBOARD_PLUGIN_SETTINGS_GROUP); ?>
+                <?php settings_fields(ADSTERRA_DASHBOARD_PLUGIN_SETTINGS_GROUP); ?>
                 <?php do_settings_sections(ADSTERRA_DASHBOARD_PLUGIN_SETTINGS_GROUP); ?>
                 <table class="form-table">
                     <tbody>
@@ -167,7 +168,7 @@ class WPAdsterraDashboard {
                             <td>
                                 <input type="text" name="<?php print ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX; ?>_token" value="<?php echo htmlspecialchars(get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_token'), ENT_QUOTES) ?>" placeholder="32 characters" style="width:300px;" required />
                                 <p class="description">
-                                    Simply visit <a href="https://publishers.adsterra.com/api-token/" target="_blank">API Token</a> page.
+                                    Simply visit <a href="https://beta.publishers.adsterra.com/api-token" target="_blank">API Token</a> page.
                                     Generate new token and copy it.
                                 </p>
                             </td>
@@ -175,25 +176,27 @@ class WPAdsterraDashboard {
                         <tr valign="top">
                             <td scope="row" class="left_adsterra_bar">Domain</td>
                             <td>
-        <?php if (!empty($domains)) { ?>
+                                <?php if (!empty($domains)) { ?>
                                     <select name="<?php print ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX; ?>_domain_id">
-                                    <?php
-                                    foreach ($domains as $domain) {
+                                        <?php
+                                        $selectedDomainID = get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_domain_id');
 
-                                        $selectedDom = '';
-                                        if (get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_domain_id') == $pluginSettings['domain_id']) {
-                                            $selectedDom = ' selected ';
+                                        foreach ($domains as $domain) {
+
+                                            $selectedDom = '';
+                                            if (intval($selectedDomainID) === intval($pluginSettings['domain_id'])) {
+                                                $selectedDom = ' selected ';
+                                            }
+
+                                            print '<option value="' . $domain['id'] . '" ' . $selectedDom . ' >' . $domain['title'] . '</option>' . PHP_EOL;
                                         }
-
-                                        print '<option value="' . $domain['id'] . '" ' . $selectedDom . ' >' . $domain['title'] . '</option>' . PHP_EOL;
-                                    }
-                                    ?>
+                                        ?>
                                     </select>
-                                    <?php } else { ?>
+                                <?php } else { ?>
                                     <p class="description">
-                                        To view the list of domains, enter the correct Token API and save. 
+                                        To view the list of domains, enter the correct Token API and save.
                                     </p>
-        <?php } ?>
+                                <?php } ?>
                             </td>
                         </tr>
 
@@ -206,7 +209,7 @@ class WPAdsterraDashboard {
                 </p>
             </form>
         </div>
-        <?php
+    <?php
     }
 
     public function adsterra_dashboard_widget() {
@@ -264,9 +267,9 @@ class WPAdsterraDashboard {
         }
 
         $period = new DatePeriod(
-                new DateTime($statParams['start_date']),
-                new DateInterval('P1D'),
-                new DateTime($statParams['finish_date'])
+            new DateTime($statParams['start_date']),
+            new DateInterval('P1D'),
+            new DateTime($statParams['finish_date'])
         );
 
         foreach ($period as $key => $value) {
@@ -310,16 +313,16 @@ class WPAdsterraDashboard {
                 }
             }
         }
-        ?>
+    ?>
 
         <div id="container-box">
 
-        <?php if ($errorMessage) { ?>
+            <?php if ($errorMessage) { ?>
                 <div class="error notice">
                     <p><?php _e($errorMessage); ?></p>
                 </div>
                 <p>Please enter into <a href="<?php print esc_url(get_admin_url(null, 'options-general.php?page=wp-adsterra-dashboard%2Findex.php')); ?>">Setting page</a> for resolve problem.</p>
-        <?php } else { ?>
+            <?php } else { ?>
 
                 <div style="height: 300px;" id="containerChartjs">
                     <canvas id="adsterraStatsCanvas"></canvas>
@@ -327,25 +330,25 @@ class WPAdsterraDashboard {
 
                 <table style="width:100%;">
                     <tr>
-                                       <td style="width:30%;">Filter Month:</td>
-                                       <td style="width:70%; font-weight: bold;">
-                            <select id="adsterra_dashboard_widget_filter_month" >
-            <?php
-            for ($i = 0; $i <= 12; $i++) {
+						<td style="width:30%;">Filter Month:</td>
+						<td style="width:70%; font-weight: bold;">
+                            <select id="adsterra_dashboard_widget_filter_month">
+                                <?php
+                                for ($i = 0; $i <= 12; $i++) {
 
-                $selectValue = date('F Y', strtotime("-$i month"));
+                                    $selectValue = date('F Y', strtotime("-$i month"));
 
-                $selectedDom = '';
-                if (
-                        (!$dateFilter && date('Y-m', strtotime($selectValue)) == date('Y-m')) ||
-                        ($dateFilter && date('Y-m', strtotime($dateFilter)) == date('Y-m', strtotime($selectValue)) )
-                ) {
-                    $selectedDom = ' selected ';
-                }
+                                    $selectedDom = '';
+                                    if (
+                                        (!$dateFilter && date('Y-m', strtotime($selectValue)) == date('Y-m')) ||
+                                        ($dateFilter && date('Y-m', strtotime($dateFilter)) == date('Y-m', strtotime($selectValue)))
+                                    ) {
+                                        $selectedDom = ' selected ';
+                                    }
 
-                print '<option value="' . strtotime($selectValue) . '" ' . $selectedDom . ' >' . $selectValue . '</option>' . PHP_EOL;
-            }
-            ?>
+                                    print '<option value="' . strtotime($selectValue) . '" ' . $selectedDom . ' >' . $selectValue . '</option>' . PHP_EOL;
+                                }
+                                ?>
                             </select>
                         </td>
                     </tr>
@@ -354,22 +357,38 @@ class WPAdsterraDashboard {
                 <table>
                     <tr>
                         <td>
-                            <div class="small-box"><h3>Tot. Impressions</h3><p><?php print number_format($totalImpressions, 0, '.', '.'); ?></p></div>
-                            <div class="small-box"><h3>Tot. CPM</h3><p><?php print number_format($totalCPM, 3, '.', ','); ?></p></div>
-                            <div class="small-box"><h3>Tot. CTR</h3><p><?php print number_format($totalCTR, 3, '.', ','); ?></p></div>
+                            <div class="small-box">
+                                <h3>Tot. Impressions</h3>
+                                <p><?php print number_format($totalImpressions, 0, '.', '.'); ?></p>
+                            </div>
+                            <div class="small-box">
+                                <h3>Tot. CPM</h3>
+                                <p><?php print number_format($totalCPM, 3, '.', ','); ?></p>
+                            </div>
+                            <div class="small-box">
+                                <h3>Tot. CTR</h3>
+                                <p><?php print number_format($totalCTR, 3, '.', ','); ?></p>
+                            </div>
 
-                            <div class="small-box small-md-6"><h3>Total Clicks</h3><p><?php print number_format($totalClicks, 0, '.', '.'); ?></p></div>
-                            <div class="small-box small-md-6"><h3>Grand Earnings</h3><p><?php print number_format($totalRevenue, 3, '.', ','); ?> $</p></div>
+                            <div class="small-box small-md-6">
+                                <h3>Total Clicks</h3>
+                                <p><?php print number_format($totalClicks, 0, '.', '.'); ?></p>
+                            </div>
+                            <div class="small-box small-md-6">
+                                <h3>Grand Earnings</h3>
+                                <p><?php print number_format($totalRevenue, 3, '.', ','); ?> $</p>
+                            </div>
                         </td>
                     </tr>
                 </table>
-        <?php } ?>
+            <?php } ?>
         </div>
 
         <script>
-
             function adsterraRandomRGBAColor() {
-                var o = Math.round, r = Math.random, s = 255;
+                var o = Math.round,
+                    r = Math.random,
+                    s = 255;
                 //return 'rgba(' + o(r() * s) + ',' + o(r() * s) + ',' + o(r() * s) + ',' + r().toFixed(1) + ')';
                 return 'rgba(' + o(r() * s) + ',' + o(r() * s) + ',' + o(r() * s) + ', 1)';
             }
@@ -381,15 +400,14 @@ class WPAdsterraDashboard {
                 data: {
                     labels: ADSTERRA_LABELS_X,
                     datasets: [
-        <?php foreach ($values_Y as $key => $value) { ?>
-                            {
+                        <?php foreach ($values_Y as $key => $value) { ?> {
                                 label: '<?php print strtoupper($key); ?>',
                                 backgroundColor: adsterraRandomRGBAColor(),
                                 borderColor: adsterraRandomRGBAColor(),
                                 data: [<?php print implode(",", $values_Y[$key]); ?>],
                                 fill: false,
                             },
-        <?php } ?>
+                        <?php } ?>
                     ]
                 },
                 options: {
@@ -403,7 +421,7 @@ class WPAdsterraDashboard {
                         mode: 'index',
                         intersect: false,
                         callbacks: {
-                            label: function (tooltipItem, data) {
+                            label: function(tooltipItem, data) {
                                 var corporation = data.datasets[tooltipItem.datasetIndex].label;
                                 var valor = data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
 
@@ -425,33 +443,31 @@ class WPAdsterraDashboard {
                     },
                     scales: {
                         xAxes: [{
+                            display: true,
+                            scaleLabel: {
                                 display: true,
-                                scaleLabel: {
-                                    display: true,
-                                    labelString: 'Days of <?php print $monthActiveName; ?>'
-                                }
-                            }],
+                                labelString: 'Days of <?php print $monthActiveName; ?>'
+                            }
+                        }],
                         yAxes: [{
-                                display: true,
-                                scaleLabel: {
-                                    display: false,
-                                    labelString: 'Values'
-                                }
-                            }]
+                            display: true,
+                            scaleLabel: {
+                                display: false,
+                                labelString: 'Values'
+                            }
+                        }]
                     }
                 }
             };
 
-            document.addEventListener("DOMContentLoaded", function () {
+            document.addEventListener("DOMContentLoaded", function() {
 
                 var adsterraCtx = document.getElementById('adsterraStatsCanvas').getContext('2d');
                 var adsterraStatsCanvas = new Chart(adsterraCtx, adsterraChartConfig);
             });
-
         </script>
-        <?php
+<?php
     }
-
 }
 
 new WPAdsterraDashboard();

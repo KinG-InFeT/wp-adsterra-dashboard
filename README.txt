@@ -2,8 +2,8 @@
 Contributors: Vincenzo Luongo
 Tags: adsterra dashboard, adsterra stats, adsterra publishers dashboard
 Requires at least: 5.0
-Tested up to: 6.1
-Requires PHP: 7.0
+Tested up to: 6.6
+Requires PHP: 8.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -41,6 +41,9 @@ Setup an free account and get your credential from [Adsterra - API Documentation
 3. Widget
 
 == Changelog ==
+
+= 1.3.0 =
+* Update API token auth and minor FIX
 
 = 1.2.4 =
 * Support for Wordpress 6.x added

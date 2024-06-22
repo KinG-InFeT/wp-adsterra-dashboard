@@ -1,7 +1,7 @@
 <?php
 
 /*
- * https://api3.adsterratools.com/docs/publishers
+ * https://docs.adsterratools.com/public/v3/publishers-api/
  */
 
 class WPAdsterraDashboardAPIClient {
@@ -16,18 +16,22 @@ class WPAdsterraDashboardAPIClient {
         $this->domain = $domain;
     }
 
-    private function doGet($endpoint, array $payload) {
+    private function doGet($endpoint, array $payload = []) {
 
         $args = array(
             'body' => $payload,
             'timeout' => 10,
             'redirection' => 3,
+            'headers' => [
+                'Content-Type' => 'application/json',
+                'X-API-Key' => $this->token
+            ]
         );
 
-        $ret = wp_remote_get(self::BASE_HOST . '/' . $this->token . $endpoint, $args);
+        $ret = wp_remote_get(self::BASE_HOST . $endpoint, $args);
 
         if (is_wp_error($ret)) {
-            return false; 
+            return false;
             //$ret = $ret['body'];
         }
 
@@ -83,7 +87,14 @@ class WPAdsterraDashboardAPIClient {
     }
 
     public function getStatsByPlacementID($domain_id, $placement_id, $parameters = []) {
-        return $this->doGet('/stats.json?domain=' . $domain_id . '&placement=' . $placement_id . '&start_date=' . $parameters['start_date'] . '&finish_date=' . $parameters['finish_date'] . '&group_by[]=date', []);
+		
+		$queryString = http_build_query([
+			'domain' => $domain_id,
+			//'placement' => $placement_id,
+			'start_date' => $parameters['start_date'],
+			'finish_date' => $parameters['finish_date'],
+		]);
+		
+        return $this->doGet('/stats.json?' . $queryString);
     }
-
 }
