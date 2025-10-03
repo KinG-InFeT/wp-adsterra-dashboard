@@ -4,7 +4,7 @@
  * Plugin Name: WP Adsterra Dashboard
  * Plugin URI: https://wordpress-plugins.luongovincenzo.it/#wp-adsterra-dashboard
  * Description: WP AdsTerra Dashboard for view statistics via API
- * Version: 1.3.0
+ * Version: 2.0.0
  * Author: Vincenzo Luongo
  * Author URI: https://www.luongovincenzo.it/
  * License: GPLv2 or later
@@ -31,7 +31,6 @@ class WPAdsterraDashboard {
 
         $this->pluginDetails = get_plugin_data(__FILE__);
 
-        //$this->pluginDetails['Version'] = time();
 
         $this->pluginOptions = [
             'enabled' => get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_enabled'),
@@ -48,15 +47,34 @@ class WPAdsterraDashboard {
 
         add_action('admin_enqueue_scripts', [$this, 'widget_dashboard_ajax_script']);
         add_action('wp_ajax_adsterra_update_month_filter', [$this, 'wp_adsterra_update_month_filter_action']);
+        add_action('wp_ajax_adsterra_refresh_cache', [$this, 'wp_adsterra_refresh_cache_action']);
     }
 
     public function wp_adsterra_update_month_filter_action() {
+        // Verify nonce for security
+        if (!wp_verify_nonce($_POST['nonce'], 'adsterra_month_filter_nonce')) {
+            wp_die('Security check failed');
+        }
 
-        $filter = $this->validFilter(@$_POST['filter_month']);
+        $filter = $this->validFilter(sanitize_text_field($_POST['filter_month']));
 
         update_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_widget_month_filter', $filter);
 
-        wp_die();
+        wp_send_json_success(['message' => 'Filter updated successfully']);
+    }
+
+    public function wp_adsterra_refresh_cache_action() {
+        // Verify nonce for security
+        if (!wp_verify_nonce($_POST['nonce'], 'adsterra_refresh_nonce')) {
+            wp_die('Security check failed');
+        }
+
+        // Clear all Adsterra cache
+        global $wpdb;
+        $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_adsterra_widget_cache_%'");
+        $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_timeout_adsterra_widget_cache_%'");
+
+        wp_send_json_success(['message' => 'Cache refreshed successfully']);
     }
 
     private function validFilter($timestamp) {
@@ -80,7 +98,11 @@ class WPAdsterraDashboard {
 
         wp_enqueue_script('adsterra-dashboard-widget-admin-ajax-script', plugins_url('/js/main.js', __FILE__), ['jquery'], $this->pluginDetails['Version']);
 
-        wp_localize_script('adsterra-dashboard-widget-admin-ajax-script', 'adsterra_ajax_url', admin_url('admin-ajax.php'));
+        wp_localize_script('adsterra-dashboard-widget-admin-ajax-script', 'adsterra_ajax_object', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('adsterra_month_filter_nonce'),
+            'refresh_nonce' => wp_create_nonce('adsterra_refresh_nonce')
+        ]);
     }
 
     public function add_plugin_actions($links) {
@@ -94,23 +116,40 @@ class WPAdsterraDashboard {
     }
 
     function optionTokenValidate($value) {
+        $sanitized_value = sanitize_text_field(trim($value));
 
-        if (!preg_match("/^[a-z0-9]{32}$/", str_replace(" ", "", trim($value)))) {
-            add_settings_error('adsterra_plugins_option_token', 'adsterra_plugins_option_token', 'Token invalid. (32 characters) ', 'error');
+        if (empty($sanitized_value)) {
+            add_settings_error('adsterra_plugins_option_token', 'adsterra_plugins_option_token', 'Token cannot be empty.', 'error');
             return false;
-        } else {
-            return $value;
         }
+
+        if (!preg_match("/^[a-z0-9]{32}$/", $sanitized_value)) {
+            add_settings_error('adsterra_plugins_option_token', 'adsterra_plugins_option_token', 'Token invalid. Must be exactly 32 alphanumeric characters.', 'error');
+            return false;
+        }
+
+        return $sanitized_value;
+    }
+
+    function optionDomainIdValidate($value) {
+        $sanitized_value = sanitize_text_field($value);
+
+        if (!empty($sanitized_value) && $sanitized_value !== 'all' && !is_numeric($sanitized_value)) {
+            add_settings_error('adsterra_plugins_option_domain_id', 'adsterra_plugins_option_domain_id', 'Domain ID must be numeric or "all".', 'error');
+            return false;
+        }
+
+        return $sanitized_value;
     }
 
     public function _registerOptions() {
         register_setting(ADSTERRA_DASHBOARD_PLUGIN_SETTINGS_GROUP, ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_enabled');
         register_setting(ADSTERRA_DASHBOARD_PLUGIN_SETTINGS_GROUP, ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_token', [$this, 'optionTokenValidate']);
-        register_setting(ADSTERRA_DASHBOARD_PLUGIN_SETTINGS_GROUP, ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_domain_id');
+        register_setting(ADSTERRA_DASHBOARD_PLUGIN_SETTINGS_GROUP, ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_domain_id', [$this, 'optionDomainIdValidate']);
     }
 
     public function dashboard_widget() {
-        wp_add_dashboard_widget('adsterra_dashboard_widget', 'Earnings Dashboard for Adsterra', [$this, 'adsterra_dashboard_widget']);
+        wp_add_dashboard_widget('adsterra_dashboard_widget', 'Adsterra Earnings Dashboard', [$this, 'adsterra_dashboard_widget']);
     }
 
     public function viewAdminSettingsPage() {
@@ -140,74 +179,290 @@ class WPAdsterraDashboard {
 ?>
 
         <style>
-            .left_adsterra_bar {
-                width: 200px;
+            .adsterra-settings-wrap {
+                max-width: 1000px;
+                margin: 20px 0;
+            }
+
+            .adsterra-settings-header {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 30px;
+                border-radius: 8px;
+                margin-bottom: 30px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            }
+
+            .adsterra-settings-header h1 {
+                margin: 0 0 10px 0;
+                color: white;
+                font-size: 28px;
+                font-weight: 600;
+            }
+
+            .adsterra-settings-header p {
+                margin: 0;
+                opacity: 0.9;
+                font-size: 14px;
+            }
+
+            .adsterra-settings-card {
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+                padding: 30px;
+            }
+
+            .adsterra-form-group {
+                margin-bottom: 25px;
+                padding-bottom: 25px;
+                border-bottom: 1px solid #f0f0f0;
+            }
+
+            .adsterra-form-group:last-child {
+                border-bottom: none;
+                margin-bottom: 0;
+                padding-bottom: 0;
+            }
+
+            .adsterra-form-label {
+                display: block;
+                font-weight: 600;
+                margin-bottom: 8px;
+                color: #23282d;
+                font-size: 14px;
+            }
+
+            .adsterra-form-input {
+                width: 100%;
+                max-width: 500px;
+                padding: 10px 15px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+                transition: border-color 0.3s;
+            }
+
+            .adsterra-form-input:focus {
+                border-color: #667eea;
+                outline: none;
+                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            }
+
+            .adsterra-form-select {
+                width: 100%;
+                max-width: 500px;
+                padding: 10px 15px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+                background-color: white;
+                transition: border-color 0.3s;
+            }
+
+            .adsterra-form-select:focus {
+                border-color: #667eea;
+                outline: none;
+                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            }
+
+            .adsterra-toggle-wrapper {
+                display: flex;
+                align-items: center;
+            }
+
+            .adsterra-toggle {
+                position: relative;
+                display: inline-block;
+                width: 50px;
+                height: 26px;
+            }
+
+            .adsterra-toggle input {
+                opacity: 0;
+                width: 0;
+                height: 0;
+            }
+
+            .adsterra-toggle-slider {
+                position: absolute;
+                cursor: pointer;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: #ccc;
+                transition: .4s;
+                border-radius: 34px;
+            }
+
+            .adsterra-toggle-slider:before {
+                position: absolute;
+                content: "";
+                height: 18px;
+                width: 18px;
+                left: 4px;
+                bottom: 4px;
+                background-color: white;
+                transition: .4s;
+                border-radius: 50%;
+            }
+
+            .adsterra-toggle input:checked + .adsterra-toggle-slider {
+                background-color: #667eea;
+            }
+
+            .adsterra-toggle input:checked + .adsterra-toggle-slider:before {
+                transform: translateX(24px);
+            }
+
+            .adsterra-toggle-label {
+                margin-left: 12px;
+                color: #666;
+                font-size: 14px;
+            }
+
+            .adsterra-description {
+                margin-top: 8px;
+                color: #666;
+                font-size: 13px;
+                line-height: 1.5;
+            }
+
+            .adsterra-description a {
+                color: #667eea;
+                text-decoration: none;
+                font-weight: 500;
+            }
+
+            .adsterra-description a:hover {
+                text-decoration: underline;
+            }
+
+            .adsterra-submit-wrapper {
+                margin-top: 30px;
+                padding-top: 20px;
+                border-top: 1px solid #f0f0f0;
+            }
+
+            .adsterra-btn-primary {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                padding: 12px 30px;
+                border-radius: 4px;
+                font-size: 15px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: transform 0.2s, box-shadow 0.2s;
+            }
+
+            .adsterra-btn-primary:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            }
+
+            .adsterra-alert {
+                padding: 15px 20px;
+                border-radius: 4px;
+                margin-bottom: 20px;
+                display: flex;
+                align-items: center;
+            }
+
+            .adsterra-alert-error {
+                background-color: #fee;
+                border-left: 4px solid #dc3545;
+                color: #721c24;
+            }
+
+            .adsterra-alert-icon {
+                margin-right: 10px;
+                font-size: 18px;
             }
         </style>
-        <div class="wrap">
-            <h2>WP Adsterra Settings</h2>
+
+        <div class="adsterra-settings-wrap">
+            <div class="adsterra-settings-header">
+                <h1>⚡ Adsterra Dashboard Settings</h1>
+                <p>Configure your Adsterra API integration to display earnings statistics on your dashboard</p>
+            </div>
 
             <?php if ($errorMessage) { ?>
-                <div class="error notice">
-                    <p><?php _e($errorMessage); ?></p>
+                <div class="adsterra-alert adsterra-alert-error">
+                    <span class="adsterra-alert-icon">⚠️</span>
+                    <span><?php echo esc_html($errorMessage); ?></span>
                 </div>
             <?php } ?>
 
-            <form method="post" action="options.php">
-                <?php settings_fields(ADSTERRA_DASHBOARD_PLUGIN_SETTINGS_GROUP); ?>
-                <?php do_settings_sections(ADSTERRA_DASHBOARD_PLUGIN_SETTINGS_GROUP); ?>
-                <table class="form-table">
-                    <tbody>
-                        <tr valign="top">
-                            <td scope="row" class="left_adsterra_bar">Enabled</td>
-                            <td><input type="checkbox" <?php echo get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_enabled') ? 'checked="checked"' : '' ?> value="1" name="<?php print ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX; ?>_enabled" /></td>
-                        </tr>
+            <div class="adsterra-settings-card">
+                <form method="post" action="options.php">
+                    <?php settings_fields(ADSTERRA_DASHBOARD_PLUGIN_SETTINGS_GROUP); ?>
+                    <?php do_settings_sections(ADSTERRA_DASHBOARD_PLUGIN_SETTINGS_GROUP); ?>
 
-                        <tr valign="top">
-                            <td scope="row" class="left_adsterra_bar">API Token</td>
-                            <td>
-                                <input type="text" name="<?php print ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX; ?>_token" value="<?php echo htmlspecialchars(get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_token'), ENT_QUOTES) ?>" placeholder="32 characters" style="width:300px;" required />
-                                <p class="description">
-                                    Simply visit <a href="https://beta.publishers.adsterra.com/api-token" target="_blank">API Token</a> page.
-                                    Generate new token and copy it.
-                                </p>
-                            </td>
-                        </tr>
-                        <tr valign="top">
-                            <td scope="row" class="left_adsterra_bar">Domain</td>
-                            <td>
-                                <?php if (!empty($domains)) { ?>
-                                    <select name="<?php print ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX; ?>_domain_id">
-                                        <?php
-                                        $selectedDomainID = get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_domain_id');
+                    <div class="adsterra-form-group">
+                        <label class="adsterra-form-label">Enable Dashboard Widget</label>
+                        <div class="adsterra-toggle-wrapper">
+                            <label class="adsterra-toggle">
+                                <input type="checkbox" <?php echo get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_enabled') ? 'checked="checked"' : '' ?> value="1" name="<?php print ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX; ?>_enabled" />
+                                <span class="adsterra-toggle-slider"></span>
+                            </label>
+                            <span class="adsterra-toggle-label">
+                                <?php echo get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_enabled') ? 'Enabled' : 'Disabled'; ?>
+                            </span>
+                        </div>
+                    </div>
 
-                                        foreach ($domains as $domain) {
+                    <div class="adsterra-form-group">
+                        <label class="adsterra-form-label" for="adsterra_token">API Token</label>
+                        <input type="text"
+                               id="adsterra_token"
+                               class="adsterra-form-input"
+                               name="<?php print ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX; ?>_token"
+                               value="<?php echo htmlspecialchars(get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_token'), ENT_QUOTES) ?>"
+                               placeholder="Enter your 32-character API token"
+                               required />
+                        <p class="adsterra-description">
+                            🔑 Get your API token from <a href="https://beta.publishers.adsterra.com/api-token" target="_blank">Adsterra API Token page</a>.
+                            Generate a new token and paste it here.
+                        </p>
+                    </div>
 
-                                            $selectedDom = '';
-                                            if (intval($selectedDomainID) === intval($pluginSettings['domain_id'])) {
-                                                $selectedDom = ' selected ';
-                                            }
+                    <div class="adsterra-form-group">
+                        <label class="adsterra-form-label" for="adsterra_domain">Select Domain</label>
+                        <?php if (!empty($domains)) { ?>
+                            <select id="adsterra_domain" class="adsterra-form-select" name="<?php print ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX; ?>_domain_id">
+                                <option value="all" <?php echo (get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_domain_id') === 'all') ? 'selected' : ''; ?>>🌐 All Domains</option>
+                                <?php
+                                $selectedDomainID = get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_domain_id');
 
-                                            print '<option value="' . $domain['id'] . '" ' . $selectedDom . ' >' . $domain['title'] . '</option>' . PHP_EOL;
-                                        }
-                                        ?>
-                                    </select>
-                                <?php } else { ?>
-                                    <p class="description">
-                                        To view the list of domains, enter the correct Token API and save.
-                                    </p>
-                                <?php } ?>
-                            </td>
-                        </tr>
+                                foreach ($domains as $domain) {
+                                    $selectedDom = '';
+                                    if (intval($selectedDomainID) === intval($domain['id'])) {
+                                        $selectedDom = ' selected ';
+                                    }
 
+                                    echo '<option value="' . esc_attr($domain['id']) . '" ' . $selectedDom . '>' . esc_html($domain['title']) . '</option>' . PHP_EOL;
+                                }
+                                ?>
+                            </select>
+                            <p class="adsterra-description">
+                                📊 Choose "All Domains" to view combined statistics, or select a specific domain
+                            </p>
+                        <?php } else { ?>
+                            <p class="adsterra-description">
+                                ⚠️ Enter a valid API token and save to view available domains
+                            </p>
+                        <?php } ?>
+                    </div>
 
-                    </tbody>
-                </table>
-
-                <p class="submit">
-                    <input type="submit" class="button-primary" value="<?php _e('Update Settings') ?>" />
-                </p>
-            </form>
+                    <div class="adsterra-submit-wrapper">
+                        <button type="submit" class="adsterra-btn-primary">
+                            💾 Save Settings
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     <?php
     }
@@ -223,7 +478,7 @@ class WPAdsterraDashboard {
         ];
 
         if (empty($pluginSettings['enabled']) || empty($pluginSettings['token'])) {
-            print '<h3>Plugin not active or token invalid, please enter into <a href="' . esc_url(get_admin_url(null, 'options-general.php?page=wp-adsterra-dashboard%2Findex.php')) . '">Setting page</a> and enable it';
+            echo '<h3>Plugin not active or token invalid, please enter into <a href="' . esc_url(get_admin_url(null, 'options-general.php?page=wp-adsterra-dashboard%2Findex.php')) . '">Setting page</a> and enable it</h3>';
             return;
         }
 
@@ -239,12 +494,46 @@ class WPAdsterraDashboard {
             $monthActiveName = date('F');
         }
 
-        $placements = $adsterraAPIClient->getPlacementsByDomainID($pluginSettings['domain_id']);
+        // Create cache key based on settings
+        $cache_key = 'adsterra_widget_cache_' . md5(serialize($pluginSettings));
+        $cached_data = get_transient($cache_key);
 
-        if (!empty($placements['code']) && in_array($placements['code'], [401, 403])) {
-            $errorMessage = 'Adsterra Dashboard. API Token error Code: ' . $placements['code'] . ' Message: ' . $placements['message'];
+        if ($cached_data !== false) {
+            // Use cached data
+            extract($cached_data);
+        } else {
+            // Fetch fresh data
 
-            $placements = [];
+        // Get placements based on domain selection
+        $placements = [];
+
+        if ($pluginSettings['domain_id'] === 'all') {
+            // Get all domains and their placements
+            $domains = $adsterraAPIClient->getDomains();
+
+            if (!empty($domains['code']) && in_array($domains['code'], [401, 403])) {
+                $errorMessage = 'Adsterra Dashboard. API Token error Code: ' . $domains['code'] . ' Message: ' . $domains['message'];
+            } else {
+                foreach ($domains as $domain) {
+                    $domainPlacements = $adsterraAPIClient->getPlacementsByDomainID($domain['id']);
+
+                    if (!empty($domainPlacements) && !isset($domainPlacements['code'])) {
+                        foreach ($domainPlacements as $placement) {
+                            $placement['domain_id'] = $domain['id'];
+                            $placement['domain_title'] = $domain['title'];
+                            $placements[] = $placement;
+                        }
+                    }
+                }
+            }
+        } else {
+            $placements = $adsterraAPIClient->getPlacementsByDomainID($pluginSettings['domain_id']);
+
+            if (!empty($placements['code']) && in_array($placements['code'], [401, 403])) {
+                $errorMessage = 'Adsterra Dashboard. API Token error Code: ' . $placements['code'] . ' Message: ' . $placements['message'];
+
+                $placements = [];
+            }
         }
 
         $totalImpressions = 0;
@@ -273,35 +562,51 @@ class WPAdsterraDashboard {
         );
 
         foreach ($period as $key => $value) {
-            //$labels_X[] = $value->format('Y-m-d');
             $labels_X[date('j', strtotime($value->format('Y-m-d')))] = $value->format('d');
         }
 
+        // Use individual placement calls for better compatibility
         foreach ($placements as $placementStats) {
-
             $placementID = $placementStats['id'];
             $placementTitle = $placementStats['title'];
+            $domainID = $placementStats['domain_id'] ?? $pluginSettings['domain_id'];
 
-            $statsSinglePlacement = $adsterraAPIClient->getStatsByPlacementID($pluginSettings['domain_id'], $placementID, $statParams);
+            $statsSinglePlacement = $adsterraAPIClient->getStatsByPlacementID($domainID, $placementID, $statParams);
 
-            foreach ($statsSinglePlacement['items'] as $statSinglePlacement) {
-
-                $day = $statSinglePlacement['date'];
-
-                $values_Y[$placementTitle][date('j', strtotime($day))] = $statSinglePlacement['revenue'];
-
-                //$values_Y[$placementTitle]['impression'] = $statSinglePlacement['impression'];
-                //$values_Y[$placementTitle]['clicks'] = $statSinglePlacement['clicks'];
-                //$values_Y[$placementTitle]['ctr'] = $statSinglePlacement['ctr'];
-                //$values_Y[$placementTitle]['cpm'] = $statSinglePlacement['cpm'];
-                //$values_Y[$placementTitle]['revenue'] = $statSinglePlacement['revenue'];
-
-                $totalImpressions += $statSinglePlacement['impression'];
-                $totalClicks += $statSinglePlacement['clicks'];
-                $totalCTR += $statSinglePlacement['ctr'];
-                $totalCPM += $statSinglePlacement['cpm'];
-                $totalRevenue += $statSinglePlacement['revenue'];
+            if (!empty($statsSinglePlacement['code']) && in_array($statsSinglePlacement['code'], [401, 403, 500])) {
+                $errorMessage = 'Adsterra Dashboard. API Error Code: ' . $statsSinglePlacement['code'] . ' Message: ' . ($statsSinglePlacement['message'] ?? 'Unknown error');
+                break;
             }
+
+            if (!empty($statsSinglePlacement['items'])) {
+                foreach ($statsSinglePlacement['items'] as $statSinglePlacement) {
+                    $day = date('j', strtotime($statSinglePlacement['date']));
+
+                    if (!isset($values_Y[$placementTitle])) {
+                        $values_Y[$placementTitle] = [];
+                    }
+                    if (!isset($values_Y[$placementTitle][$day])) {
+                        $values_Y[$placementTitle][$day] = 0;
+                    }
+                    $values_Y[$placementTitle][$day] += floatval($statSinglePlacement['revenue'] ?? 0);
+
+                    // Accumulate totals
+                    $totalImpressions += intval($statSinglePlacement['impression'] ?? 0);
+                    $totalClicks += intval($statSinglePlacement['clicks'] ?? 0);
+                    $totalRevenue += floatval($statSinglePlacement['revenue'] ?? 0);
+                }
+            }
+        }
+
+        // Calculate proper weighted averages for CPM and CTR
+        if ($totalImpressions > 0) {
+            $totalCPM = ($totalRevenue / $totalImpressions) * 1000; // CPM = (Revenue / Impressions) * 1000
+            $totalCTR = ($totalClicks / $totalImpressions) * 100; // CTR = (Clicks / Impressions) * 100
+        }
+
+            // Cache the data for 1 hour
+            $cache_data = compact('placements', 'totalImpressions', 'totalClicks', 'totalCTR', 'totalCPM', 'totalRevenue', 'labels_X', 'values_Y', 'errorMessage');
+            set_transient($cache_key, $cache_data, HOUR_IN_SECONDS);
         }
 
         foreach ($values_Y as $placementTitle => $dataPlacement) {
@@ -319,68 +624,71 @@ class WPAdsterraDashboard {
 
             <?php if ($errorMessage) { ?>
                 <div class="error notice">
-                    <p><?php _e($errorMessage); ?></p>
+                    <p><?php echo esc_html($errorMessage); ?></p>
                 </div>
-                <p>Please enter into <a href="<?php print esc_url(get_admin_url(null, 'options-general.php?page=wp-adsterra-dashboard%2Findex.php')); ?>">Setting page</a> for resolve problem.</p>
+                <p>Please enter into <a href="<?php echo esc_url(get_admin_url(null, 'options-general.php?page=wp-adsterra-dashboard%2Findex.php')); ?>">Setting page</a> for resolve problem.</p>
             <?php } else { ?>
 
-                <div style="height: 300px;" id="containerChartjs">
+                <div id="containerChartjs">
                     <canvas id="adsterraStatsCanvas"></canvas>
                 </div>
 
-                <table style="width:100%;">
-                    <tr>
-						<td style="width:30%;">Filter Month:</td>
-						<td style="width:70%; font-weight: bold;">
-                            <select id="adsterra_dashboard_widget_filter_month">
-                                <?php
-                                for ($i = 0; $i <= 12; $i++) {
+                <div class="adsterra-controls">
+                    <table>
+                        <tr>
+                            <td style="width:30%; color: #666; font-weight: 600;">📅 Filter Month:</td>
+                            <td style="width:50%;">
+                                <select id="adsterra_dashboard_widget_filter_month">
+                                    <?php
+                                    for ($i = 0; $i <= 12; $i++) {
 
-                                    $selectValue = date('F Y', strtotime("-$i month"));
+                                        $selectValue = date('F Y', strtotime("-$i month"));
 
-                                    $selectedDom = '';
-                                    if (
-                                        (!$dateFilter && date('Y-m', strtotime($selectValue)) == date('Y-m')) ||
-                                        ($dateFilter && date('Y-m', strtotime($dateFilter)) == date('Y-m', strtotime($selectValue)))
-                                    ) {
-                                        $selectedDom = ' selected ';
+                                        $selectedDom = '';
+                                        if (
+                                            (!$dateFilter && date('Y-m', strtotime($selectValue)) == date('Y-m')) ||
+                                            ($dateFilter && date('Y-m', strtotime($dateFilter)) == date('Y-m', strtotime($selectValue)))
+                                        ) {
+                                            $selectedDom = ' selected ';
+                                        }
+
+                                        echo '<option value="' . esc_attr(strtotime($selectValue)) . '" ' . $selectedDom . '>' . esc_html($selectValue) . '</option>' . PHP_EOL;
                                     }
+                                    ?>
+                                </select>
+                            </td>
+                            <td style="width:20%; text-align: right;">
+                                <button type="button" id="adsterra_refresh_cache" class="button button-secondary">
+                                    <span class="dashicons dashicons-update" style="vertical-align: middle;"></span> Refresh
+                                </button>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
 
-                                    print '<option value="' . strtotime($selectValue) . '" ' . $selectedDom . ' >' . $selectValue . '</option>' . PHP_EOL;
-                                }
-                                ?>
-                            </select>
-                        </td>
-                    </tr>
-                </table>
+                <div class="stats-grid">
+                    <div class="small-box">
+                        <h3>👁️ Impressions</h3>
+                        <p><?php echo esc_html(number_format($totalImpressions, 0, '.', ',')); ?></p>
+                    </div>
+                    <div class="small-box">
+                        <h3>🖱️ Clicks</h3>
+                        <p><?php echo esc_html(number_format($totalClicks, 0, '.', ',')); ?></p>
+                    </div>
+                    <div class="small-box">
+                        <h3>💰 CPM</h3>
+                        <p>$<?php echo esc_html(number_format($totalCPM, 2, '.', ',')); ?></p>
+                    </div>
+                    <div class="small-box">
+                        <h3>📊 CTR</h3>
+                        <p><?php echo esc_html(number_format($totalCTR, 2, '.', ',')); ?>%</p>
+                    </div>
 
-                <table>
-                    <tr>
-                        <td>
-                            <div class="small-box">
-                                <h3>Tot. Impressions</h3>
-                                <p><?php print number_format($totalImpressions, 0, '.', '.'); ?></p>
-                            </div>
-                            <div class="small-box">
-                                <h3>Tot. CPM</h3>
-                                <p><?php print number_format($totalCPM, 3, '.', ','); ?></p>
-                            </div>
-                            <div class="small-box">
-                                <h3>Tot. CTR</h3>
-                                <p><?php print number_format($totalCTR, 3, '.', ','); ?></p>
-                            </div>
-
-                            <div class="small-box small-md-6">
-                                <h3>Total Clicks</h3>
-                                <p><?php print number_format($totalClicks, 0, '.', '.'); ?></p>
-                            </div>
-                            <div class="small-box small-md-6">
-                                <h3>Grand Earnings</h3>
-                                <p><?php print number_format($totalRevenue, 3, '.', ','); ?> $</p>
-                            </div>
-                        </td>
-                    </tr>
-                </table>
+                    <div class="small-box small-md-6">
+                        <h3>💵 Grand Earnings</h3>
+                        <p>$<?php echo esc_html(number_format($totalRevenue, 2, '.', ',')); ?></p>
+                    </div>
+                </div>
             <?php } ?>
         </div>
 
@@ -389,11 +697,10 @@ class WPAdsterraDashboard {
                 var o = Math.round,
                     r = Math.random,
                     s = 255;
-                //return 'rgba(' + o(r() * s) + ',' + o(r() * s) + ',' + o(r() * s) + ',' + r().toFixed(1) + ')';
                 return 'rgba(' + o(r() * s) + ',' + o(r() * s) + ',' + o(r() * s) + ', 1)';
             }
 
-            var ADSTERRA_LABELS_X = [<?php print implode(",", $labels_X); ?>];
+            var ADSTERRA_LABELS_X = <?php echo wp_json_encode(array_values($labels_X)); ?>;
 
             var adsterraChartConfig = {
                 type: 'line',
@@ -401,10 +708,10 @@ class WPAdsterraDashboard {
                     labels: ADSTERRA_LABELS_X,
                     datasets: [
                         <?php foreach ($values_Y as $key => $value) { ?> {
-                                label: '<?php print strtoupper($key); ?>',
+                                label: <?php echo wp_json_encode(strtoupper($key)); ?>,
                                 backgroundColor: adsterraRandomRGBAColor(),
                                 borderColor: adsterraRandomRGBAColor(),
-                                data: [<?php print implode(",", $values_Y[$key]); ?>],
+                                data: <?php echo wp_json_encode(array_values($values_Y[$key])); ?>,
                                 fill: false,
                             },
                         <?php } ?>
@@ -446,7 +753,7 @@ class WPAdsterraDashboard {
                             display: true,
                             scaleLabel: {
                                 display: true,
-                                labelString: 'Days of <?php print $monthActiveName; ?>'
+                                labelString: <?php echo wp_json_encode('Days of ' . $monthActiveName); ?>
                             }
                         }],
                         yAxes: [{
