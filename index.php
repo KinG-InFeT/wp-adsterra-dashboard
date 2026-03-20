@@ -2,9 +2,9 @@
 
 /**
  * Plugin Name: WP Adsterra Dashboard
- * Plugin URI: https://wordpress-plugins.luongovincenzo.it/#wp-adsterra-dashboard
+ * Plugin URI: https://wordpress-plugins.luongovincenzo.it/plugin/wp-adsterra-dashboard
  * Description: WP AdsTerra Dashboard for view statistics via API
- * Version: 2.0.0
+ * Version: 3.0.0
  * Author: Vincenzo Luongo
  * Author URI: https://www.luongovincenzo.it/
  * License: GPLv2 or later
@@ -23,7 +23,7 @@ class WPAdsterraDashboard {
     protected $pluginDetails;
     protected $pluginOptions = [];
 
-    function __construct() {
+    public function __construct() {
 
         if (!function_exists('get_plugin_data')) {
             require_once(ABSPATH . 'wp-admin/includes/plugin.php');
@@ -51,9 +51,12 @@ class WPAdsterraDashboard {
     }
 
     public function wp_adsterra_update_month_filter_action() {
-        // Verify nonce for security
-        if (!wp_verify_nonce($_POST['nonce'], 'adsterra_month_filter_nonce')) {
-            wp_die('Security check failed');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Unauthorized', 403);
+        }
+
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'adsterra_month_filter_nonce')) {
+            wp_send_json_error('Security check failed', 403);
         }
 
         $filter = $this->validFilter(sanitize_text_field($_POST['filter_month']));
@@ -64,9 +67,12 @@ class WPAdsterraDashboard {
     }
 
     public function wp_adsterra_refresh_cache_action() {
-        // Verify nonce for security
-        if (!wp_verify_nonce($_POST['nonce'], 'adsterra_refresh_nonce')) {
-            wp_die('Security check failed');
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Unauthorized', 403);
+        }
+
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'adsterra_refresh_nonce')) {
+            wp_send_json_error('Security check failed', 403);
         }
 
         // Clear all Adsterra cache
@@ -87,14 +93,17 @@ class WPAdsterraDashboard {
 
     public function widget_dashboard_ajax_script($hook) {
 
-        if ('index.php' != $hook) {
-            // Only applies to dashboard panel
+        if (!in_array($hook, ['index.php', 'settings_page_wp-adsterra-dashboard/index'])) {
             return;
         }
 
-        wp_enqueue_style('adsterra-dashboard-widget-admin-theme', plugins_url('/css/style.css', __FILE__), $this->pluginDetails['Version']);
+        wp_enqueue_style('adsterra-dashboard-widget-admin-theme', plugins_url('/css/style.css', __FILE__), [], $this->pluginDetails['Version']);
 
-        wp_enqueue_script('chartjs', plugins_url('/js/chartjs.js', __FILE__), ['jquery'], $this->pluginDetails['Version']);
+        if ('index.php' !== $hook) {
+            return;
+        }
+
+        wp_enqueue_script('chartjs', plugins_url('/js/chartjs.js', __FILE__), [], $this->pluginDetails['Version']);
 
         wp_enqueue_script('adsterra-dashboard-widget-admin-ajax-script', plugins_url('/js/main.js', __FILE__), ['jquery'], $this->pluginDetails['Version']);
 
@@ -178,210 +187,6 @@ class WPAdsterraDashboard {
         }
 ?>
 
-        <style>
-            .adsterra-settings-wrap {
-                max-width: 1000px;
-                margin: 20px 0;
-            }
-
-            .adsterra-settings-header {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                padding: 30px;
-                border-radius: 8px;
-                margin-bottom: 30px;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            }
-
-            .adsterra-settings-header h1 {
-                margin: 0 0 10px 0;
-                color: white;
-                font-size: 28px;
-                font-weight: 600;
-            }
-
-            .adsterra-settings-header p {
-                margin: 0;
-                opacity: 0.9;
-                font-size: 14px;
-            }
-
-            .adsterra-settings-card {
-                background: white;
-                border-radius: 8px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-                padding: 30px;
-            }
-
-            .adsterra-form-group {
-                margin-bottom: 25px;
-                padding-bottom: 25px;
-                border-bottom: 1px solid #f0f0f0;
-            }
-
-            .adsterra-form-group:last-child {
-                border-bottom: none;
-                margin-bottom: 0;
-                padding-bottom: 0;
-            }
-
-            .adsterra-form-label {
-                display: block;
-                font-weight: 600;
-                margin-bottom: 8px;
-                color: #23282d;
-                font-size: 14px;
-            }
-
-            .adsterra-form-input {
-                width: 100%;
-                max-width: 500px;
-                padding: 10px 15px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                font-size: 14px;
-                transition: border-color 0.3s;
-            }
-
-            .adsterra-form-input:focus {
-                border-color: #667eea;
-                outline: none;
-                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-            }
-
-            .adsterra-form-select {
-                width: 100%;
-                max-width: 500px;
-                padding: 10px 15px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                font-size: 14px;
-                background-color: white;
-                transition: border-color 0.3s;
-            }
-
-            .adsterra-form-select:focus {
-                border-color: #667eea;
-                outline: none;
-                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-            }
-
-            .adsterra-toggle-wrapper {
-                display: flex;
-                align-items: center;
-            }
-
-            .adsterra-toggle {
-                position: relative;
-                display: inline-block;
-                width: 50px;
-                height: 26px;
-            }
-
-            .adsterra-toggle input {
-                opacity: 0;
-                width: 0;
-                height: 0;
-            }
-
-            .adsterra-toggle-slider {
-                position: absolute;
-                cursor: pointer;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background-color: #ccc;
-                transition: .4s;
-                border-radius: 34px;
-            }
-
-            .adsterra-toggle-slider:before {
-                position: absolute;
-                content: "";
-                height: 18px;
-                width: 18px;
-                left: 4px;
-                bottom: 4px;
-                background-color: white;
-                transition: .4s;
-                border-radius: 50%;
-            }
-
-            .adsterra-toggle input:checked + .adsterra-toggle-slider {
-                background-color: #667eea;
-            }
-
-            .adsterra-toggle input:checked + .adsterra-toggle-slider:before {
-                transform: translateX(24px);
-            }
-
-            .adsterra-toggle-label {
-                margin-left: 12px;
-                color: #666;
-                font-size: 14px;
-            }
-
-            .adsterra-description {
-                margin-top: 8px;
-                color: #666;
-                font-size: 13px;
-                line-height: 1.5;
-            }
-
-            .adsterra-description a {
-                color: #667eea;
-                text-decoration: none;
-                font-weight: 500;
-            }
-
-            .adsterra-description a:hover {
-                text-decoration: underline;
-            }
-
-            .adsterra-submit-wrapper {
-                margin-top: 30px;
-                padding-top: 20px;
-                border-top: 1px solid #f0f0f0;
-            }
-
-            .adsterra-btn-primary {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                border: none;
-                padding: 12px 30px;
-                border-radius: 4px;
-                font-size: 15px;
-                font-weight: 600;
-                cursor: pointer;
-                transition: transform 0.2s, box-shadow 0.2s;
-            }
-
-            .adsterra-btn-primary:hover {
-                transform: translateY(-1px);
-                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-            }
-
-            .adsterra-alert {
-                padding: 15px 20px;
-                border-radius: 4px;
-                margin-bottom: 20px;
-                display: flex;
-                align-items: center;
-            }
-
-            .adsterra-alert-error {
-                background-color: #fee;
-                border-left: 4px solid #dc3545;
-                color: #721c24;
-            }
-
-            .adsterra-alert-icon {
-                margin-right: 10px;
-                font-size: 18px;
-            }
-        </style>
-
         <div class="adsterra-settings-wrap">
             <div class="adsterra-settings-header">
                 <h1>⚡ Adsterra Dashboard Settings</h1>
@@ -404,7 +209,7 @@ class WPAdsterraDashboard {
                         <label class="adsterra-form-label">Enable Dashboard Widget</label>
                         <div class="adsterra-toggle-wrapper">
                             <label class="adsterra-toggle">
-                                <input type="checkbox" <?php echo get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_enabled') ? 'checked="checked"' : '' ?> value="1" name="<?php print ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX; ?>_enabled" />
+                                <input type="checkbox" <?php echo get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_enabled') ? 'checked="checked"' : '' ?> value="1" name="<?php echo ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX; ?>_enabled" />
                                 <span class="adsterra-toggle-slider"></span>
                             </label>
                             <span class="adsterra-toggle-label">
@@ -418,8 +223,8 @@ class WPAdsterraDashboard {
                         <input type="text"
                                id="adsterra_token"
                                class="adsterra-form-input"
-                               name="<?php print ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX; ?>_token"
-                               value="<?php echo htmlspecialchars(get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_token'), ENT_QUOTES) ?>"
+                               name="<?php echo ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX; ?>_token"
+                               value="<?php echo esc_attr(get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_token')); ?>"
                                placeholder="Enter your 32-character API token"
                                required />
                         <p class="adsterra-description">
@@ -431,7 +236,7 @@ class WPAdsterraDashboard {
                     <div class="adsterra-form-group">
                         <label class="adsterra-form-label" for="adsterra_domain">Select Domain</label>
                         <?php if (!empty($domains)) { ?>
-                            <select id="adsterra_domain" class="adsterra-form-select" name="<?php print ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX; ?>_domain_id">
+                            <select id="adsterra_domain" class="adsterra-form-select" name="<?php echo ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX; ?>_domain_id">
                                 <option value="all" <?php echo (get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_domain_id') === 'all') ? 'selected' : ''; ?>>🌐 All Domains</option>
                                 <?php
                                 $selectedDomainID = get_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_domain_id');
@@ -488,10 +293,10 @@ class WPAdsterraDashboard {
         $errorMessage = null;
 
         if ($pluginSettings['widget_filter_month']) {
-            $dateFilter = date('Y-m-d', $pluginSettings['widget_filter_month']);
-            $monthActiveName = date('F', $pluginSettings['widget_filter_month']);
+            $dateFilter = wp_date('Y-m-d', $pluginSettings['widget_filter_month']);
+            $monthActiveName = wp_date('F', $pluginSettings['widget_filter_month']);
         } else {
-            $monthActiveName = date('F');
+            $monthActiveName = wp_date('F');
         }
 
         // Create cache key based on settings
@@ -499,8 +304,15 @@ class WPAdsterraDashboard {
         $cached_data = get_transient($cache_key);
 
         if ($cached_data !== false) {
-            // Use cached data
-            extract($cached_data);
+            $placements = $cached_data['placements'];
+            $totalImpressions = $cached_data['totalImpressions'];
+            $totalClicks = $cached_data['totalClicks'];
+            $totalCTR = $cached_data['totalCTR'];
+            $totalCPM = $cached_data['totalCPM'];
+            $totalRevenue = $cached_data['totalRevenue'];
+            $labels_X = $cached_data['labels_X'];
+            $values_Y = $cached_data['values_Y'];
+            $errorMessage = $cached_data['errorMessage'];
         } else {
             // Fetch fresh data
 
@@ -548,11 +360,11 @@ class WPAdsterraDashboard {
         $statParams = [];
 
         if (!empty($dateFilter)) {
-            $statParams['start_date'] = date('Y-m-01', strtotime($dateFilter));
-            $statParams['finish_date'] = date('Y-m-t', strtotime($dateFilter));
+            $statParams['start_date'] = wp_date('Y-m-01', strtotime($dateFilter));
+            $statParams['finish_date'] = wp_date('Y-m-t', strtotime($dateFilter));
         } else {
-            $statParams['start_date'] = date('Y-m-01');
-            $statParams['finish_date'] = date('Y-m-t');
+            $statParams['start_date'] = wp_date('Y-m-01');
+            $statParams['finish_date'] = wp_date('Y-m-t');
         }
 
         $period = new DatePeriod(
@@ -562,7 +374,7 @@ class WPAdsterraDashboard {
         );
 
         foreach ($period as $key => $value) {
-            $labels_X[date('j', strtotime($value->format('Y-m-d')))] = $value->format('d');
+            $labels_X[wp_date('j', strtotime($value->format('Y-m-d')))] = $value->format('d');
         }
 
         // Use individual placement calls for better compatibility
@@ -580,7 +392,7 @@ class WPAdsterraDashboard {
 
             if (!empty($statsSinglePlacement['items'])) {
                 foreach ($statsSinglePlacement['items'] as $statSinglePlacement) {
-                    $day = date('j', strtotime($statSinglePlacement['date']));
+                    $day = wp_date('j', strtotime($statSinglePlacement['date']));
 
                     if (!isset($values_Y[$placementTitle])) {
                         $values_Y[$placementTitle] = [];
@@ -642,17 +454,18 @@ class WPAdsterraDashboard {
                                     <?php
                                     for ($i = 0; $i <= 12; $i++) {
 
-                                        $selectValue = date('F Y', strtotime("-$i month"));
+                                        $monthTimestamp = strtotime("-$i month");
+                                        $selectLabel = wp_date('F Y', $monthTimestamp);
 
                                         $selectedDom = '';
                                         if (
-                                            (!$dateFilter && date('Y-m', strtotime($selectValue)) == date('Y-m')) ||
-                                            ($dateFilter && date('Y-m', strtotime($dateFilter)) == date('Y-m', strtotime($selectValue)))
+                                            (!$dateFilter && wp_date('Y-m', $monthTimestamp) == wp_date('Y-m')) ||
+                                            ($dateFilter && wp_date('Y-m', strtotime($dateFilter)) == wp_date('Y-m', $monthTimestamp))
                                         ) {
                                             $selectedDom = ' selected ';
                                         }
 
-                                        echo '<option value="' . esc_attr(strtotime($selectValue)) . '" ' . $selectedDom . '>' . esc_html($selectValue) . '</option>' . PHP_EOL;
+                                        echo '<option value="' . esc_attr($monthTimestamp) . '" ' . $selectedDom . '>' . esc_html($selectLabel) . '</option>' . PHP_EOL;
                                     }
                                     ?>
                                 </select>
@@ -693,12 +506,16 @@ class WPAdsterraDashboard {
         </div>
 
         <script>
-            function adsterraRandomRGBAColor() {
-                var o = Math.round,
-                    r = Math.random,
-                    s = 255;
-                return 'rgba(' + o(r() * s) + ',' + o(r() * s) + ',' + o(r() * s) + ', 1)';
-            }
+            var ADSTERRA_COLOR_PALETTE = [
+                'rgba(102, 126, 234, 1)',
+                'rgba(118, 75, 162, 1)',
+                'rgba(240, 147, 251, 1)',
+                'rgba(245, 87, 108, 1)',
+                'rgba(52, 199, 89, 1)',
+                'rgba(255, 159, 64, 1)',
+                'rgba(54, 162, 235, 1)',
+                'rgba(255, 205, 86, 1)'
+            ];
 
             var ADSTERRA_LABELS_X = <?php echo wp_json_encode(array_values($labels_X)); ?>;
 
@@ -707,39 +524,46 @@ class WPAdsterraDashboard {
                 data: {
                     labels: ADSTERRA_LABELS_X,
                     datasets: [
-                        <?php foreach ($values_Y as $key => $value) { ?> {
+                        <?php $colorIndex = 0; foreach ($values_Y as $key => $value) { ?> {
                                 label: <?php echo wp_json_encode(strtoupper($key)); ?>,
-                                backgroundColor: adsterraRandomRGBAColor(),
-                                borderColor: adsterraRandomRGBAColor(),
+                                backgroundColor: ADSTERRA_COLOR_PALETTE[<?php echo $colorIndex % 8; ?>],
+                                borderColor: ADSTERRA_COLOR_PALETTE[<?php echo $colorIndex % 8; ?>],
                                 data: <?php echo wp_json_encode(array_values($values_Y[$key])); ?>,
                                 fill: false,
                             },
-                        <?php } ?>
+                        <?php $colorIndex++; } ?>
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    title: {
-                        display: false,
-                        text: 'Adsterra Stats'
-                    },
-                    tooltips: {
+                    interaction: {
                         mode: 'index',
-                        intersect: false,
-                        callbacks: {
-                            label: function(tooltipItem, data) {
-                                var corporation = data.datasets[tooltipItem.datasetIndex].label;
-                                var valor = data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
+                        intersect: false
+                    },
+                    plugins: {
+                        title: {
+                            display: false,
+                            text: 'Adsterra Stats'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    var label = context.dataset.label || '';
+                                    var value = context.parsed.y;
 
-                                var total = 0;
-                                for (var i = 0; i < data.datasets.length; i++)
-                                    total += data.datasets[i].data[tooltipItem.index];
+                                    var total = 0;
+                                    context.chart.data.datasets.forEach(function(ds) {
+                                        total += ds.data[context.dataIndex];
+                                    });
 
-                                if (tooltipItem.datasetIndex != data.datasets.length - 1) {
-                                    return corporation + " : $ " + valor.toFixed(3).replace(/(\d)(?=(\d{3})+\.)/g, '$1,');
-                                } else { // .. else, you display the dataset and the total, using an array
-                                    return [corporation + " : $ " + valor.toFixed(3).replace(/(\d)(?=(\d{3})+\.)/g, '$1,'), "Total : $ " + total.toFixed(3)];
+                                    var formatted = '$ ' + value.toFixed(3).replace(/(\d)(?=(\d{3})+\.)/g, '$1,');
+                                    if (context.datasetIndex === context.chart.data.datasets.length - 1) {
+                                        return [label + ' : ' + formatted, 'Total : $ ' + total.toFixed(3)];
+                                    }
+                                    return label + ' : ' + formatted;
                                 }
                             }
                         }
@@ -749,28 +573,29 @@ class WPAdsterraDashboard {
                         intersect: true
                     },
                     scales: {
-                        xAxes: [{
+                        x: {
                             display: true,
-                            scaleLabel: {
+                            title: {
                                 display: true,
-                                labelString: <?php echo wp_json_encode('Days of ' . $monthActiveName); ?>
+                                text: <?php echo wp_json_encode('Days of ' . $monthActiveName); ?>
                             }
-                        }],
-                        yAxes: [{
+                        },
+                        y: {
                             display: true,
-                            scaleLabel: {
+                            title: {
                                 display: false,
-                                labelString: 'Values'
+                                text: 'Values'
                             }
-                        }]
+                        }
                     }
                 }
             };
 
             document.addEventListener("DOMContentLoaded", function() {
-
-                var adsterraCtx = document.getElementById('adsterraStatsCanvas').getContext('2d');
-                var adsterraStatsCanvas = new Chart(adsterraCtx, adsterraChartConfig);
+                var adsterraStatsCanvas = new Chart(
+                    document.getElementById('adsterraStatsCanvas'),
+                    adsterraChartConfig
+                );
             });
         </script>
 <?php
