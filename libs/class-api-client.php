@@ -76,11 +76,6 @@ class WPAdsterraDashboardAPIClient {
             set_transient($this->getCacheKey($endpoint, $payload), $decoded, self::CACHE_EXPIRY);
         }
 
-        // Debug logging for development (remove in production)
-        if (WP_DEBUG && WP_DEBUG_LOG) {
-            error_log('Adsterra API Response for ' . $endpoint . ': ' . wp_json_encode($decoded));
-        }
-
         return $decoded;
     }
 
@@ -110,7 +105,7 @@ class WPAdsterraDashboardAPIClient {
             return $ret;
         }
 
-        $retPlacements = $this->doGet('/domain/' . $domain_id . '/placements.json', []);
+        $retPlacements = $this->doGet('/domain/' . intval($domain_id) . '/placements.json', []);
 
         if (empty($retPlacements['items'])) {
             return $retPlacements;
@@ -144,15 +139,4 @@ class WPAdsterraDashboardAPIClient {
         return $this->doGet('/stats.json?' . $queryString);
     }
 
-    public function getStatsByDomainID($domain_id, $parameters = []) {
-        // Get all stats for domain grouped by placement
-        $queryString = http_build_query([
-            'domain' => $domain_id,
-            'start_date' => $parameters['start_date'],
-            'finish_date' => $parameters['finish_date'],
-            'group_by' => 'placement' // Group by placement to get stats per placement
-        ]);
-
-        return $this->doGet('/stats.json?' . $queryString);
-    }
 }

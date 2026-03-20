@@ -2,9 +2,9 @@
 Contributors: Vincenzo Luongo
 Tags: adsterra dashboard, adsterra stats, adsterra publishers dashboard
 Requires at least: 5.0
-Tested up to: 6.7
-Requires PHP: 7.4
-Stable tag: 2.0.0
+Tested up to: 7.0
+Requires PHP: 8.0
+Stable tag: 3.0.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -57,6 +57,29 @@ Setup an free account and get your credential from [Adsterra - API Documentation
 3. Widget
 
 == Changelog ==
+
+= 3.0.0 =
+* UPGRADE: Chart.js upgraded from v2.9.3 to v4.4.7 with rewritten chart configuration
+* SECURITY: Added `current_user_can('manage_options')` check in all AJAX actions
+* SECURITY: Added `isset()` check before nonce verification to prevent PHP warnings
+* SECURITY: Replaced `wp_die()` with `wp_send_json_error()` for proper AJAX error responses
+* SECURITY: Replaced `htmlspecialchars()` with `esc_attr()` for WordPress-standard escaping
+* SECURITY: Removed `extract()` usage for safer variable handling
+* SECURITY: Replaced `date()` with `wp_date()` for WordPress timezone awareness
+* SECURITY: Sanitized domain ID with `intval()` in API URL construction
+* BUG FIX: Fixed `wp_enqueue_style` missing `$deps` parameter
+* BUG FIX: Added `placements` option cleanup in uninstall script
+* BUG FIX: Added widget cache transient cleanup in uninstall script
+* BUG FIX: Consistent use of `echo` instead of mixing `echo`/`print`
+* UI/UX: Predefined professional color palette for chart datasets (8 distinct colors)
+* UI/UX: Moved inline settings page styles to external CSS file
+* UI/UX: Improved responsive behavior for small screens
+* UI/UX: Styles now load on settings page as well as dashboard
+* CODE: Removed dead `getStatsByDomainID()` method from API client
+* CODE: Removed debug logging block from API client
+* CODE: Added explicit `public` visibility to constructor
+* COMPATIBILITY: WordPress 7.0 support
+* COMPATIBILITY: PHP 8.0 minimum requirement (aligned with WP 7.0)
 
 = 2.0.0 =
 * MAJOR UPDATE - Complete security overhaul and API optimization
