@@ -1,29 +1,12 @@
 <?php
-/**
- * Uninstall script for WP Adsterra Dashboard
- *
- * This file is called when the plugin is uninstalled to clean up all data
- */
 
-// If uninstall not called from WordPress, exit
 if (!defined('WP_UNINSTALL_PLUGIN')) {
     exit;
 }
 
-// Define the options prefix
-define('ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX', 'wp_adsterra_dashboard_option');
+delete_option('wp_adsterra_dashboard_option_enabled');
+delete_option('wp_adsterra_dashboard_option_token');
+delete_option('wp_adsterra_dashboard_option_domain_id');
+delete_option('wp_adsterra_dashboard_option_widget_month_filter');
 
-// Delete all plugin options
-delete_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_enabled');
-delete_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_token');
-delete_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_domain_id');
-delete_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_placements');
-delete_option(ADSTERRA_DASHBOARD_PLUGIN_OPTIONS_PREFIX . '_widget_month_filter');
-
-// Clear any cached data (transients)
-global $wpdb;
-$wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_adsterra_api_%' OR option_name LIKE '_transient_timeout_adsterra_api_%'");
-$wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE '_transient_adsterra_widget_cache_%' OR option_name LIKE '_transient_timeout_adsterra_widget_cache_%'");
-
-// Clear any scheduled hooks if they exist
-wp_clear_scheduled_hook('adsterra_cleanup_cache');
+// Cached stats are transients with a one-hour expiry: WordPress removes them on its own

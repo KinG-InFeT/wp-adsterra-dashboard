@@ -309,12 +309,6 @@
     transform: translateX(24px);
 }
 
-.adsterra-toggle-label {
-    margin-left: 12px;
-    color: #666;
-    font-size: 14px;
-}
-
 .adsterra-description {
     margin-top: 8px;
     color: #666;
@@ -333,9 +327,7 @@
 }
 
 .adsterra-submit-wrapper {
-    margin-top: 30px;
-    padding-top: 20px;
-    border-top: 1px solid #f0f0f0;
+    margin-top: 5px;
 }
 
 .adsterra-btn-primary {
