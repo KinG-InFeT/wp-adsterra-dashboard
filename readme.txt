@@ -2,7 +2,7 @@
 Contributors: vluongo
 Tags: adsterra, earnings, statistics, dashboard widget, publishers
 Requires at least: 5.6
-Tested up to: 7.1
+Tested up to: 7.2
 Requires PHP: 8.0
 Stable tag: 4.0.0
 License: GPLv2 or later
